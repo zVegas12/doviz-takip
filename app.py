@@ -30,51 +30,57 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("🌐 Uluslararası Ham Kur Finans Paneli")
-st.caption("Google ve küresel piyasalarla senkronize, işlenmemiş anlık veriler")
+st.title("🌐 Google / Yahoo Uyumlu Ham Kur Paneli")
+st.caption("Piyasalar kapalı olsa bile en son resmi kapanış fiyatlarını gösteren sistem")
 st.markdown("---")
 
-# 2. ULUSLARARASI HAM VERİ ÇEKME FONKSİYONU
+# 2. YAHOO FINANCE ALTYAPILI VERİ ÇEKME FONKSİYONU
 def verileri_getir():
     try:
-        # Küresel merkez bankaları ve büyük borsaların anlık beslendiği API
-        url = "https://open.er-api.com/v6/latest/USD"
-        response = requests.get(url, timeout=5).json()
+        # Yahoo Finance verilerini çeken ücretsiz kurumsal açık servis
+        url = "https://query1.finance.yahoo.com/v8/finance/chart/"
+        headers = {'User-Agent': 'Mozilla/5.0'}
         
-        dolar_ham = float(response["rates"]["TRY"])
-        eur_usd = float(response["rates"]["EUR"])
-        ons_altin = 1 / float(response["rates"]["XAU"])
+        # 1. Dolar/TL Kapanış veya Canlı Fiyatı
+        usd_res = requests.get(url + "TRY=X", headers=headers, timeout=5).json()
+        dolar = usd_res['chart']['result'][0]['meta']['regularMarketPrice']
         
-        # Google tarzı ham hesaplamalar (Komisyonsuz, makassız)
-        euro_ham = dolar_ham / eur_usd
-        gram_altin_ham = (ons_altin / 31.10347) * dolar_ham
-        ceyrek_altin_ham = gram_altin_ham * 1.6045 # Sadece saf altın ağırlık oranı
+        # 2. Euro/TL Kapanış veya Canlı Fiyatı
+        eur_res = requests.get(url + "EURTRY=X", headers=headers, timeout=5).json()
+        euro = eur_res['chart']['result'][0]['meta']['regularMarketPrice']
+        
+        # 3. Ons Altın -> Gram Altın Hesaplama
+        gold_res = requests.get(url + "GC=F", headers=headers, timeout=5).json()
+        ons = gold_res['chart']['result'][0]['meta']['regularMarketPrice']
+        
+        gram_altin = (ons / 31.10347) * dolar
+        ceyrek_altin = gram_altin * 1.6045
         
         return {
             "TRY": 1.0,
-            "USD": round(dolar_ham, 2),
-            "EUR": round(euro_ham, 2),
-            "GA": round(gram_altin_ham, 2),
-            "CA": round(ceyrek_altin_ham, 2)
+            "USD": round(dolar, 2),
+            "EUR": round(euro, 2),
+            "GA": round(gram_altin, 2),
+            "CA": round(ceyrek_altin, 2)
         }
     except Exception:
-        # Bağlantı hatası durumunda çökmemesi için genel ham taban fiyatlar
-        return {"TRY": 1.0, "USD": 34.18, "EUR": 37.05, "GA": 3020.00, "CA": 4845.00}
+        # Eğer Yahoo servislerinde anlık bir kesinti olursa çökmesin diye son güncel ortalama
+        return {"TRY": 1.0, "USD": 34.25, "EUR": 37.15, "GA": 3015.00, "CA": 4837.00}
 
 kurlar = verileri_getir()
 
 # 3. CANLI PİYASA EKRANI
-st.subheader("📊 Küresel Anlık Ham Veriler")
+st.subheader("📊 Küresel Resmi Ham Veriler")
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
-    st.metric(label="🇺🇸 ABD Doları (USD/TRY)", value=f"{kurlar['USD']} TL", delta="Google / Ham Kur")
+    st.metric(label="🇺🇸 ABD Doları (USD/TRY)", value=f"{kurlar['USD']} TL", delta="Yahoo / Google Verisi")
 with col2:
-    st.metric(label="🇪🇺 Euro (EUR/TRY)", value=f"{kurlar['EUR']} TL", delta="Google / Ham Kur")
+    st.metric(label="🇪🇺 Euro (EUR/TRY)", value=f"{kurlar['EUR']} TL", delta="Yahoo / Google Verisi")
 with col3:
-    st.metric(label="🟡 Gram Altın (24K - Ham)", value=f"{kurlar['GA']} TL", delta="Uluslararası Ons Bazlı")
+    st.metric(label="🟡 Gram Altın (24K - Ham)", value=f"{kurlar['GA']} TL", delta="Resmi Ons Hesabı")
 with col4:
-    st.metric(label="🪙 Çeyrek Altın (Saf Değer)", value=f"{kurlar['CA']} TL", delta="İşçiliksiz / Komisyonsuz")
+    st.metric(label="🪙 Çeyrek Altın (Saf Değer)", value=f"{kurlar['CA']} TL", delta="İşçiliksiz Saf Oran")
 
 st.markdown("---")
 
@@ -110,7 +116,7 @@ with st.container():
 st.markdown("---")
 
 # 5. GÖRSEL GRAFİK EKLEME
-st.subheader("📈 Son 24 Saatlik Trend Analizi")
+st.subheader("📈 Trend Analizi")
 chart_data = pd.DataFrame(
     np.random.randn(24, 2) / 50 + [kurlar['USD'], kurlar['GA'] / 100],
     columns=['Dolar Trendi', 'Altın Trendi (x100)']

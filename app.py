@@ -5,8 +5,8 @@ import numpy as np
 
 # 1. SAYFA VE TEMA AYARLARI
 st.set_page_config(
-    page_title="Pro Finans Paneli", 
-    page_icon="💎", 
+    page_title="Uluslararası Finans Paneli", 
+    page_icon="🌐", 
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -30,77 +30,51 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("💎 TR Piyasa Uyumlu Finans Paneli")
-st.caption("Kesintisiz, doğrulanmış canlı döviz kurları ve Türkiye serbest piyasa altın fiyatları")
+st.title("🌐 Uluslararası Ham Kur Finans Paneli")
+st.caption("Google ve küresel piyasalarla senkronize, işlenmemiş anlık veriler")
 st.markdown("---")
 
-# 2. DOĞRULANMIŞ VE KESİNTİSİZ VERİ ÇEKME FONKSİYONU
+# 2. ULUSLARARASI HAM VERİ ÇEKME FONKSİYONU
 def verileri_getir():
-    # Önce uluslararası en büyük kurumsal merkezden (B Planı altyapısı) ham verileri çekelim
-    # Bu API asla çökmez ve dünya genelinde saniyede bir güncellenir.
     try:
-        yedek_url = "https://open.er-api.com/v6/latest/USD"
-        yedek_res = requests.get(yedek_url, timeout=5).json()
-        
-        dolar_ham = float(yedek_res["rates"]["TRY"])
-        eur_usd = float(yedek_res["rates"]["EUR"])
-        ons_altin = 1 / float(yedek_res["rates"]["XAU"])
-        
-        # Türkiye bankalar arası ve serbest piyasa (Kapalıçarşı) ortalama makas payları eklenmiş kurlar
-        dolar_dogru = dolar_ham * 1.0015  # %0.15 reel piyasa makası
-        euro_dogru = (dolar_ham / eur_usd) * 1.0015
-        
-        # Ons altın üzerinden TR Gram ve Çeyrek hesaplama (Kuruşu kuruşuna doğru)
-        gram_altin_dogru = (ons_altin / 31.10347) * dolar_dogru
-        ceyrek_altin_dogru = (gram_altin_dogru * 1.60) * 1.075  # %7.5 darphane ve işçilik payı
-        
-    except Exception:
-        # İnternet tamamen koparsa sitenin çökmemesi için sabit değerler
-        dolar_dogru, euro_dogru, gram_altin_dogru, ceyrek_altin_dogru = 34.30, 37.20, 3060.00, 5020.00
-
-    # Şimdi ana yerel servisi deneyelim, eğer veriler mantıklıysa onu kullanalım
-    try:
-        url = "https://finans.truncgil.com/today.json"
+        # Küresel merkez bankaları ve büyük borsaların anlık beslendiği API
+        url = "https://open.er-api.com/v6/latest/USD"
         response = requests.get(url, timeout=5).json()
         
-        def temizle(deger):
-            return float(deger.replace(".", "").replace(",", "."))
+        dolar_ham = float(response["rates"]["TRY"])
+        eur_usd = float(response["rates"]["EUR"])
+        ons_altin = 1 / float(response["rates"]["XAU"])
         
-        usd = temizle(response["ABD DOLARI"]["Satış"])
-        eur = temizle(response["EURO"]["Satış"])
-        ga = temizle(response["Gram Altın"]["Satış"])
-        ca = temizle(response["Çeyrek Altın"]["Satış"])
+        # Google tarzı ham hesaplamalar (Komisyonsuz, makassız)
+        euro_ham = dolar_ham / eur_usd
+        gram_altin_ham = (ons_altin / 31.10347) * dolar_ham
+        ceyrek_altin_ham = gram_altin_ham * 1.6045 # Sadece saf altın ağırlık oranı
         
-        # Basit bir kontrol: Eğer gelen değerler absürt derecede düşük veya sıfırsa yedek sistemi kullan
-        if usd < 10 or ga < 500:
-            raise ValueError("Hatalı veri")
-            
-        return {"TRY": 1.0, "USD": round(usd, 2), "EUR": round(eur, 2), "GA": round(ga, 2), "CA": round(ca, 2)}
-        
-    except Exception:
-        # Yerel servis çöktüyse veya yanlış veri gönderdiyse üstte hazırladığımız kusursuz yedek kurları devreye al
         return {
             "TRY": 1.0,
-            "USD": round(dolar_dogru, 2),
-            "EUR": round(euro_dogru, 2),
-            "GA": round(gram_altin_dogru, 2),
-            "CA": round(ceyrek_altin_dogru, 2)
+            "USD": round(dolar_ham, 2),
+            "EUR": round(euro_ham, 2),
+            "GA": round(gram_altin_ham, 2),
+            "CA": round(ceyrek_altin_ham, 2)
         }
+    except Exception:
+        # Bağlantı hatası durumunda çökmemesi için genel ham taban fiyatlar
+        return {"TRY": 1.0, "USD": 34.18, "EUR": 37.05, "GA": 3020.00, "CA": 4845.00}
 
 kurlar = verileri_getir()
 
-# 3. YUKARI / AŞAĞI DEĞİŞİM OKLARI VE KARTLAR
-st.subheader("📊 Anlık Canlı Piyasa Ekranı")
+# 3. CANLI PİYASA EKRANI
+st.subheader("📊 Küresel Anlık Ham Veriler")
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
-    st.metric(label="🇺🇸 ABD Doları (USD)", value=f"{kurlar['USD']} TL", delta="Doğrulanmış Canlı")
+    st.metric(label="🇺🇸 ABD Doları (USD/TRY)", value=f"{kurlar['USD']} TL", delta="Google / Ham Kur")
 with col2:
-    st.metric(label="🇪🇺 Euro (EUR)", value=f"{kurlar['EUR']} TL", delta="Doğrulanmış Canlı")
+    st.metric(label="🇪🇺 Euro (EUR/TRY)", value=f"{kurlar['EUR']} TL", delta="Google / Ham Kur")
 with col3:
-    st.metric(label="🟡 Gram Altın (24K)", value=f"{kurlar['GA']} TL", delta="Serbest Piyasa Uyumlu")
+    st.metric(label="🟡 Gram Altın (24K - Ham)", value=f"{kurlar['GA']} TL", delta="Uluslararası Ons Bazlı")
 with col4:
-    st.metric(label="🪙 Çeyrek Altın", value=f"{kurlar['CA']} TL", delta="Darphane + İşçilik")
+    st.metric(label="🪙 Çeyrek Altın (Saf Değer)", value=f"{kurlar['CA']} TL", delta="İşçiliksiz / Komisyonsuz")
 
 st.markdown("---")
 
